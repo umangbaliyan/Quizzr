@@ -373,6 +373,50 @@ npm run build
 npm run preview
 ```
 
+### 7. Test Suite Execution
+
+Quizzr organizes tests into tiered test suites with a centralized environment loader (`tests/helpers/env.mjs`):
+
+```text
+tests/
+├── unit/                               # Fast, offline, zero network impact
+│   └── test-final-results.mjs          # Standings logic, tie-breaking (1224), podium extraction
+├── integration/                        # Isolated backend & Edge Function tests
+│   ├── test-create-room.mjs            # Room generation, cryptographic token hashing
+│   ├── test-join-room.mjs              # Player entry, nickname uniqueness
+│   ├── test-host-realtime.mjs          # Supabase Realtime WebSocket presence sync
+│   ├── test-generate-questions.mjs     # Question generation bounds & validation
+│   └── test-comprehensive-verification.mjs # Multi-client join, RLS security enforcement
+├── e2e/                                # End-to-end full game flows (smoke tests)
+│   ├── test-quiz-engine.mjs            # Full quiz lifecycle: generation -> timer -> progression
+│   ├── test-prod-verify-scoring.mjs    # Authoritative scoring formula (100 base + time bonus)
+│   └── test-prod-final-results.mjs     # Tournament completion, winner declaration, podium
+└── helpers/
+    └── env.mjs                         # Centralized env loader (process.env || .env.local)
+```
+
+#### Safe Local Execution (Offline / CI-Safe)
+The unit test suite runs 100% locally with zero external network calls, zero database writes, and zero AI token usage:
+```bash
+# Run unit tests
+npm test
+# or
+npm run test:unit
+```
+
+#### Integration & E2E Execution (Requires Active Supabase & Gemini)
+> [!NOTE]
+> Integration and E2E tests interact with deployed Supabase Edge Functions and Google Gemini. Run these specifically when validating staging or production environments:
+```bash
+# Integration test examples
+npm run test:integration:create-room
+npm run test:integration:security
+
+# End-to-end smoke test examples
+npm run test:e2e:scoring
+npm run test:e2e:quiz-engine
+```
+
 ---
 
 ## 12. Environment Variables

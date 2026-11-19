@@ -7,7 +7,17 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "npm run test:unit",
+    "test:unit": "node tests/unit/test-final-results.mjs",
+    "test:integration:create-room": "node tests/integration/test-create-room.mjs",
+    "test:integration:join-room": "node tests/integration/test-join-room.mjs",
+    "test:integration:host-realtime": "node tests/integration/test-host-realtime.mjs",
+    "test:integration:generate-questions": "node tests/integration/test-generate-questions.mjs",
+    "test:integration:security": "node tests/integration/test-comprehensive-verification.mjs",
+    "test:e2e:quiz-engine": "node tests/e2e/test-quiz-engine.mjs",
+    "test:e2e:scoring": "node tests/e2e/test-prod-verify-scoring.mjs",
+    "test:e2e:tournament": "node tests/e2e/test-prod-final-results.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.119.0",

@@ -1,22 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
-
-// Load environment from .env.local
-const envContent = fs.readFileSync('.env.local', 'utf8');
-const env = Object.fromEntries(
-  envContent
-    .split(/\r?\n/)
-    .filter((l) => l.includes('='))
-    .map((l) => {
-      const idx = l.indexOf('=');
-      return [l.slice(0, idx).trim(), l.slice(idx + 1).trim()];
-    })
-);
-
-const supabaseUrl = env.VITE_SUPABASE_URL;
-const supabaseKey = env.VITE_SUPABASE_PUBLISHABLE_KEY;
-
-const supabase = createClient(supabaseUrl, supabaseKey);
+import path from 'path';
+import { supabaseUrl, projectRoot } from '../helpers/env.mjs';
 
 const results = [];
 function record(name, passed, details = '') {
@@ -198,7 +182,7 @@ async function runFinalResultsTestSuite() {
 
   // Case 6: Backward Compatibility of get-leaderboard Output
   console.log('\n--- Case 6: Backward Compatibility of get-leaderboard ---');
-  const edgeSource = fs.readFileSync('supabase/functions/get-leaderboard/index.ts', 'utf8');
+  const edgeSource = fs.readFileSync(path.resolve(projectRoot, 'supabase/functions/get-leaderboard/index.ts'), 'utf8');
 
   const hasRoomId = edgeSource.includes('roomId: room.id');
   const hasRoomCode = edgeSource.includes('roomCode: room.room_code');
@@ -227,7 +211,7 @@ async function runFinalResultsTestSuite() {
 
   // Case 7: Hook Implementation Integrity (useRoomFinalResults.js)
   console.log('\n--- Case 7: useRoomFinalResults.js Hook Verification ---');
-  const hookSource = fs.readFileSync('src/hooks/useRoomFinalResults.js', 'utf8');
+  const hookSource = fs.readFileSync(path.resolve(projectRoot, 'src/hooks/useRoomFinalResults.js'), 'utf8');
 
   const detectsRoomCompletion =
     hookSource.includes("payload.new.status === 'completed'") &&

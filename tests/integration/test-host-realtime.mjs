@@ -1,27 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
-import fs from 'fs';
-
-// Load environment from .env.local
-const envContent = fs.readFileSync('.env.local', 'utf8');
-const env = Object.fromEntries(
-  envContent
-    .split(/\r?\n/)
-    .filter((l) => l.includes('='))
-    .map((l) => {
-      const idx = l.indexOf('=');
-      return [l.slice(0, idx).trim(), l.slice(idx + 1).trim()];
-    })
-);
-
-const supabaseUrl = env.VITE_SUPABASE_URL;
-const supabaseKey = env.VITE_SUPABASE_PUBLISHABLE_KEY;
-
-if (!supabaseUrl || !supabaseKey) {
-  console.error('Missing VITE_SUPABASE_URL or VITE_SUPABASE_PUBLISHABLE_KEY');
-  process.exit(1);
-}
-
-const supabase = createClient(supabaseUrl, supabaseKey);
+import { supabase, supabaseUrl } from '../helpers/env.mjs';
 
 async function runHostAndRealtimeTests() {
   console.log('===============================================================');
