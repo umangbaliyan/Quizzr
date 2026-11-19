@@ -228,13 +228,32 @@ Return ONLY a JSON array of objects with the exact schema:
   }
 ]`
 
+    // Helper to parse Retry-After header (seconds or HTTP-date)
+    function parseRetryAfter(header: string | null): number | null {
+      if (!header) return null
+      const trimmed = header.trim()
+      const seconds = parseInt(trimmed, 10)
+      if (!isNaN(seconds) && seconds >= 0 && String(seconds) === trimmed) {
+        return seconds * 1000
+      }
+      const parsedDate = Date.parse(trimmed)
+      if (!isNaN(parsedDate)) {
+        const diffMs = parsedDate - Date.now()
+        return diffMs > 0 ? diffMs : 0
+      }
+      return null
+    }
+
     // 10. Call Gemini API: Primary gemini-3.5-flash-lite, fallback gemini-3.8-flash, gemini-4-hydrogen, gemini-4-argon
-    // With exponential backoff retry for transient 503 capacity errors.
+    // Enforcing 48s global execution budget to stay safely within Supabase gateway timeout.
+    const GLOBAL_TIMEOUT_MS = 48000
+    const startTime = Date.now()
+
     const models = [
-      { name: "gemini-3.5-flash-lite", thinkingLevel: "MINIMAL" },
-      { name: "gemini-3.8-flash", thinkingLevel: "LOW" },
-      { name: "gemini-4-hydrogen", thinkingLevel: "LOW" },
-      { name: "gemini-4-argon", thinkingLevel: "LOW" },
+      { name: "gemini-3.5-flash-lite", thinkingLevel: "minimal" },
+      { name: "gemini-3.8-flash", thinkingLevel: "low" },
+      { name: "gemini-4-hydrogen", thinkingLevel: "low" },
+      { name: "gemini-4-argon", thinkingLevel: "low" },
     ]
     let geminiRes: Response | null = null
     let lastErrorStatus = 502
@@ -256,17 +275,42 @@ Return ONLY a JSON array of objects with the exact schema:
         },
       }
 
-      // Allow up to 1 retry attempt per model if hit with 503 or 429
+      // Allow up to 1 retry attempt per model for transient 503/429 if budget permits
       const maxRetries = 1
       for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        const elapsed = Date.now() - startTime
+        const remainingBudget = GLOBAL_TIMEOUT_MS - elapsed
+
+        // Abort model loop if global execution budget is nearly exhausted
+        if (remainingBudget < 4000) {
+          lastErrorStatus = 504
+          sanitizedErrorCategory = "AI generation request timed out. Please try again with fewer questions."
+          sanitizedErrorDetails = "Global Edge Function execution budget exhausted."
+          console.warn(sanitizedErrorDetails)
+          break modelLoop
+        }
+
         if (attempt > 0) {
-          // Quick jittered backoff: 800ms - 1200ms
-          const backoffMs = 800 + Math.floor(Math.random() * 400)
+          // Bounded jittered backoff with Retry-After support, capped at 3000ms
+          let backoffMs = 800 + Math.floor(Math.random() * 400)
+          const retryAfterMs = parseRetryAfter(geminiRes?.headers?.get("retry-after") ?? null)
+          if (retryAfterMs !== null) {
+            backoffMs = retryAfterMs
+          }
+          backoffMs = Math.min(Math.max(backoffMs, 500), 3000)
+
+          // Skip retry if delay plus minimum request duration exceeds remaining budget
+          if (backoffMs + 3000 > remainingBudget) {
+            console.warn(`Insufficient budget (${remainingBudget}ms) for retry backoff (${backoffMs}ms). Skipping retry.`)
+            break
+          }
           await delay(backoffMs)
         }
 
+        // Bound individual request timeout to at most 18 seconds or remaining budget
+        const perRequestTimeout = Math.min(18000, remainingBudget - 2000)
         const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 45000)
+        const timeoutId = setTimeout(() => controller.abort(), perRequestTimeout)
 
         try {
           const res = await fetch(geminiEndpoint, {
@@ -299,40 +343,65 @@ Return ONLY a JSON array of objects with the exact schema:
               sanitizedErrorCategory = "Invalid or unauthorized AI API key configuration."
               sanitizedErrorDetails = "AI API key authorization failed on server."
               console.error(`AI service auth failure (${res.status}):`, errMsg)
-              // No point retrying auth errors
-              break
+              // Fatal authentication error: abort all models immediately
+              break modelLoop
+            } else if (res.status === 404) {
+              lastErrorStatus = 502
+              sanitizedErrorDetails = `Model ${model} endpoint not found (HTTP 404).`
+              console.warn(sanitizedErrorDetails)
+              break // Model does not exist, move to next model immediately (0 retries)
+            } else if (res.status === 500) {
+              lastErrorStatus = 502
+              sanitizedErrorCategory = "AI model server error. Switching to fallback model."
+              sanitizedErrorDetails = `Model ${model} returned internal error (HTTP 500).`
+              console.warn(sanitizedErrorDetails)
+              break // Internal model error, switch to next model immediately (0 retries)
             } else if (res.status === 429) {
               lastErrorStatus = 429
               sanitizedErrorCategory = "AI service quota or rate limit exceeded. Please try again shortly."
               sanitizedErrorDetails = `Model ${model} hit rate limit (HTTP 429).`
               console.warn(sanitizedErrorDetails)
+
+              // Check if Retry-After exceeds remaining budget
+              const retryAfterMs = parseRetryAfter(res.headers.get("retry-after"))
+              if (retryAfterMs !== null && retryAfterMs > remainingBudget - 3000) {
+                console.warn(`Retry-After (${retryAfterMs}ms) exceeds budget. Switching to next model.`)
+                break
+              }
             } else if (res.status === 503) {
               lastErrorStatus = 503
               sanitizedErrorCategory = "AI model servers are experiencing high demand. Please try again in a moment."
               sanitizedErrorDetails = `Model ${model} returned HTTP 503 high demand.`
               console.warn(sanitizedErrorDetails)
-            } else if (res.status === 404) {
-              sanitizedErrorDetails = `Model ${model} endpoint not found (HTTP 404).`
-              console.warn(sanitizedErrorDetails)
-              break // Model does not exist, move to next model immediately
+
+              const retryAfterMs = parseRetryAfter(res.headers.get("retry-after"))
+              if (retryAfterMs !== null && retryAfterMs > remainingBudget - 3000) {
+                console.warn(`Retry-After (${retryAfterMs}ms) exceeds budget. Switching to next model.`)
+                break
+              }
             } else {
               lastErrorStatus = 502
               sanitizedErrorCategory = "AI generation service is temporarily unavailable."
               sanitizedErrorDetails = `Model ${model} returned HTTP ${res.status}: ${errMsg.slice(0, 100)}`
               console.warn(sanitizedErrorDetails)
+              break
             }
 
-            // If not a retryable error (503, 429), break to next model
+            // Only retry on 503 and 429
             if (res.status !== 503 && res.status !== 429) {
               break
             }
           }
         } catch (fetchErr: unknown) {
-          const msg = fetchErr instanceof Error ? fetchErr.message : "Network error"
-          lastErrorStatus = 503
-          sanitizedErrorCategory = "Network or service unavailable connecting to AI service."
-          sanitizedErrorDetails = `Model ${model} network request failed: ${msg}`
+          clearTimeout(timeoutId)
+          const isAbort = fetchErr instanceof Error && fetchErr.name === "AbortError"
+          lastErrorStatus = 504
+          sanitizedErrorCategory = isAbort
+            ? "AI model response timed out. Trying fallback model..."
+            : "Network error connecting to AI service."
+          sanitizedErrorDetails = `Model ${model} request failed: ${isAbort ? "Timeout" : "Network"}`
           console.warn(sanitizedErrorDetails)
+          break // Move to next model on timeout
         }
       }
     }

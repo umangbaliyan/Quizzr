@@ -85,16 +85,61 @@ function QuickCreateForm() {
       });
 
       if (genErr || !genData || !genData.questions) {
-        let msg = genErr?.message || 'Failed to generate questions';
-        if (genErr?.context && typeof genErr.context.json === 'function') {
+        let userMessage = null;
+
+        // 1. Safely extract error payload from response clone
+        if (genErr?.context) {
           try {
-            const body = await genErr.context.json();
-            if (body?.error) msg = body.error;
+            const responseClone =
+              typeof genErr.context.clone === 'function'
+                ? genErr.context.clone()
+                : genErr.context;
+
+            if (typeof responseClone.text === 'function') {
+              const rawText = await responseClone.text();
+              if (rawText) {
+                try {
+                  const parsed = JSON.parse(rawText);
+                  if (parsed?.error) {
+                    userMessage = parsed.error;
+                  } else if (parsed?.message) {
+                    userMessage = parsed.message;
+                  }
+                } catch {
+                  // Fall back to clean non-HTML plain text
+                  if (
+                    rawText.length > 0 &&
+                    rawText.length < 200 &&
+                    !rawText.includes('<html') &&
+                    !rawText.includes('<!DOCTYPE')
+                  ) {
+                    userMessage = rawText.trim();
+                  }
+                }
+              }
+            }
           } catch {
-            // Keep default
+            // Stream read fallback
           }
         }
-        throw new Error(msg);
+
+        // 2. Map by HTTP status code or provide descriptive fallback instead of generic SDK message
+        if (!userMessage || userMessage.includes('non-2xx status code')) {
+          const status = genErr?.context?.status;
+          if (status === 429) {
+            userMessage = 'AI generation service rate limit reached. Please wait a moment before trying again.';
+          } else if (status === 503) {
+            userMessage = 'AI servers are currently experiencing high demand. Please try again shortly.';
+          } else if (status === 504 || status === 524) {
+            userMessage = 'Quiz generation timed out. Try generating fewer questions or a simpler topic.';
+          } else if (status === 401 || status === 403) {
+            userMessage = 'Authorization failed on quiz generation service. Please try again.';
+          } else {
+            userMessage = 'AI generation service failed to generate questions. Please try again.';
+          }
+        }
+
+        throw new Error(userMessage);
       }
 
       // 4. Navigate directly to waiting room
