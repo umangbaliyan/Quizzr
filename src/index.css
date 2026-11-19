@@ -1,0 +1,172 @@
+@import "tailwindcss";
+
+:root {
+  --color-bg: #090614;
+  --color-surface-primary: #120C24;
+  --color-surface-secondary: #1B1333;
+  --color-text-primary: #F3F4F6;
+  --color-text-secondary: #A5A6C2;
+  --color-border: #2D2250;
+  --color-accent: #3B82F6;
+  --color-accent-hover: #2563EB;
+  --color-success: #10B981;
+  --color-error: #EF4444;
+}
+
+@theme {
+  --color-background: var(--color-bg);
+  --color-surface-primary: var(--color-surface-primary);
+  --color-surface-secondary: var(--color-surface-secondary);
+  --color-text-primary: var(--color-text-primary);
+  --color-text-secondary: var(--color-text-secondary);
+  --color-border-subtle: var(--color-border);
+  --color-accent: var(--color-accent);
+  --color-success: var(--color-success);
+  --color-error: var(--color-error);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #090614;
+  color: #F3F4F6;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", Inter, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+}
+
+/* Accessible focus outline with gaming glow */
+:focus-visible {
+  outline: 2px solid #3B82F6;
+  outline-offset: 2px;
+}
+
+/* Subtle transitions for buttons and inputs */
+button,
+input,
+select,
+textarea {
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, opacity 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+
+/* Custom animations */
+@keyframes floatSlow {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(1.5deg);
+  }
+}
+
+@keyframes floatDelayed {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(-1.5deg);
+  }
+}
+
+@keyframes heliHoverLeft {
+  0% {
+    transform: translate(0px, 0px) rotate(0.5deg);
+  }
+  25% {
+    transform: translate(-6px, -5px) rotate(1.5deg);
+  }
+  50% {
+    transform: translate(-12px, 3px) rotate(-1deg);
+  }
+  75% {
+    transform: translate(-4px, 7px) rotate(0deg);
+  }
+  100% {
+    transform: translate(0px, 0px) rotate(0.5deg);
+  }
+}
+
+@keyframes heliHoverRight {
+  0% {
+    transform: translate(0px, 0px) rotate(-0.5deg);
+  }
+  25% {
+    transform: translate(7px, -6px) rotate(-1.5deg);
+  }
+  50% {
+    transform: translate(11px, 4px) rotate(1deg);
+  }
+  75% {
+    transform: translate(4px, 6px) rotate(0deg);
+  }
+  100% {
+    transform: translate(0px, 0px) rotate(-0.5deg);
+  }
+}
+
+@keyframes heliFlyCross {
+  0% {
+    transform: translate(-120px, 0px) scale(0.7) rotate(1deg);
+    opacity: 0;
+  }
+  5% {
+    opacity: 0.35;
+  }
+  48% {
+    transform: translate(50vw, -18px) scale(0.75) rotate(-0.5deg);
+    opacity: 0.45;
+  }
+  95% {
+    opacity: 0.35;
+  }
+  100% {
+    transform: translate(calc(100vw + 120px), -8px) scale(0.7) rotate(1deg);
+    opacity: 0;
+  }
+}
+
+.animate-float-slow {
+  animation: floatSlow 6s ease-in-out infinite;
+}
+
+.animate-float-delayed {
+  animation: floatDelayed 7s ease-in-out infinite 1s;
+}
+
+.animate-heli-left {
+  animation: heliHoverLeft 9s ease-in-out infinite;
+}
+
+.animate-heli-right {
+  animation: heliHoverRight 11s ease-in-out infinite 1.5s;
+}
+
+.animate-heli-fly {
+  animation: heliFlyCross 26s linear infinite;
+}
+
+/* Restrained scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #090614;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1B1333;
+  border-radius: 4px;
+  border: 1px solid #2D2250;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #2D2250;
+}
